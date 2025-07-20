@@ -34,12 +34,18 @@ public final class Store<F: Feature>: ObservableObject {
         self.state = feature.initialState
     }
 
-    /// Send an action to the store (sync, triggers effect if present)
-    public func send(_ action: F.Action) {
-        try? feature.reducer(state: &state, action: action)
+    /// Send an action to the store (sync, triggers effect if present), implement error handling optionally
+  public func send(_ action: F.Action, catch catchAction: ((Error) -> F.Action)? = nil) {
+        try? F.reducer(state: &state, action: action)
         Task {
-            if let followUp = try? await feature.effect(for: action, state: state) {
-                self.send(followUp)
+            do {
+                if let followUp = try await F.effect(for: action, state: state) {
+                    self.send(followUp)
+                }
+            } catch {
+              catchAction.map{ catchAction in
+                self.send(catchAction(error))
+              }
             }
         }
     }
